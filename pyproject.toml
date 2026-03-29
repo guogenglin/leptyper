@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "leptyper"
+version = "0.1.0"
+description = "leptyper: a tool for Leptospira species identification (Mash) and LPS serovar typing (minimap2-based)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {file = "LICENSE"}
+authors = [
+    {name = "Genglin Guo", email = "gg599@drexel.edu"},
+]
+
+dependencies = ["biopython", "minimap2", "dna_features_viewer", "kaptive", "mash"]
+
+[project.scripts]
+leptyper = "leptyper.cli:main"
