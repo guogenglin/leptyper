@@ -1,4 +1,4 @@
-# ICEfinder-opt
+# Leptyper
 Leptyper is a command-line tool inspired by Kleborate (Mash-based species identification) and Kaptive (locus-based typing). It is designed for species identification, MLST, and in silico serotyping based on rfb locus sequences.
 
 # Preface
