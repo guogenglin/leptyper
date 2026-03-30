@@ -54,7 +54,9 @@ The MLST database were obtained from [pubMLST](https://pubmlst.org/), update: 20
   
   There are 3 different MLST schemes for Leptospira, all of them will be included and screened by Leptyper.
   *glmU_1*, *pntA_1*, *sucA_1*, *tpiA_1*, *pfkB_1*, *mreA_1*, *caiB_1* for MLST scheme 1.
+  
   *adk_2*, *glmU_2*, *icdA_2*, *lipL32_2*, *lipL41_2*, *mreA_2*, *pntA_2* for MLST scheme 2.
+  
   *adk_3*, *icdA_3*, *lipL41_3*, *lipL32_3*, *rrs2_3*, *secY_3* for MLST scheme 3.
 
 I have included a Bash script in the database that can be used to update the MLST database. 
