@@ -53,6 +53,7 @@ After assigning species labels to these genomes, I built a Mash database. Specie
 The MLST database were obtained from [pubMLST](https://pubmlst.org/), update: 2026-03-26
   
   There are 3 different MLST schemes for Leptospira, all of them will be included and screened by Leptyper.
+  
   *glmU_1*, *pntA_1*, *sucA_1*, *tpiA_1*, *pfkB_1*, *mreA_1*, *caiB_1* for MLST scheme 1.
   
   *adk_2*, *glmU_2*, *icdA_2*, *lipL32_2*, *lipL41_2*, *mreA_2*, *pntA_2* for MLST scheme 2.
