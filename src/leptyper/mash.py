@@ -86,7 +86,7 @@ def lepto_species_mash(assembly: Path, verbose: bool = False) -> MashHit | None:
                 reference_label = 'unknown'
 
             best = MashHit(
-                reference = species,
+                reference = reference_label,
                 distance = dist,
                 p_value = pval,
                 shared_hashes = shared,
