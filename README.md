@@ -82,7 +82,7 @@ Problems: characters indicating issues with the locus match. An absence of any s
 ? = the match was not in a single piece, possible due to a poor match or discontiguous assembly.The number of pieces will be indicated with an integer.. 
 - = one or more genes expected in the locus were not found.
 + = one or more extra genes were found in the locus.
-* = one or more expected genes was found but with identity below the minimum threshold (default threshold for KpSC is 82.5%, default for A. baumannii is 85%)
+* = one or more expected genes was found but with identity below the minimum threshold (default threshold is 80%)
 ! = one or more locus genes is truncated
 ```
 However, based on my experience, these markers are often over-interpreted or overemphasized. In many cases, I think we do not need to be taken so seriously, instead of focusing on coverage and identity (That said, because serovar-determinant loci within the same serovars can vary substantially, while different serotypes may sometimes appear highly similar, determining an appropriate threshold will raise another complex issue.)
