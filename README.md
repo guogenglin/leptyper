@@ -50,7 +50,7 @@ Unfortunately, only 34 distinct species could be confidently identified, as some
 After assigning species labels to these genomes, I built a Mash database. Species identification is then performed using Mash, with Mash distance used as the criterion for assigning species.
 
 # MLST sequence type
-The MLST database were obtained from [pubMLST](https://pubmlst.org/), update: 2026-03-26
+The MLST database were obtained from [pubMLST](https://pubmlst.org/), update: 2026-04-01
   
   There are 3 different MLST schemes for Leptospira, all of them will be included and screened by Leptyper.
   
