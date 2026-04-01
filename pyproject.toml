@@ -13,7 +13,7 @@ authors = [
     {name = "Genglin Guo", email = "gg599@drexel.edu"},
 ]
 
-dependencies = ["biopython", "minimap2", "dna_features_viewer", "kaptive", "mash"]
+dependencies = ["biopython", "minimap2", "dna_features_viewer", "mash"]
 
 [project.scripts]
 leptyper = "leptyper.cli:main"
