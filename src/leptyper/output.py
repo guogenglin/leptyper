@@ -62,9 +62,10 @@ def generate_output(result_file: dict, output_path: str, no_cps_sequence: bool =
     # If the identity and coverage are both below 50%, we consider the serovar prediction unreliable and do not output the cps sequence.
     # TODO: There has to be a rfb locus in the genome, we may construct a strain-specific rfb locus database for generate the ourput.
     if not no_cps_sequence and result_file['Serovar'].best_match and not (result_file['Serovar'].percent_coverage < 50 and result_file['Serovar'].percent_identity < 50):
-        if not Path('rfb_locus').is_dir():
-            Path('rfb_locus').mkdir()
-        with open(Path(f'./rfb_locus/{result_file['Serovar'].sample_name}_rfb_locus_sequence.fasta'), 'wt') as handle:
+        root_dir = Path(output_path).parents[0]
+        if not Path(f'{root_dir}/rfb_locus').is_dir():
+            Path(f'{root_dir}/rfb_locus').mkdir()
+        with open(Path(f'{root_dir}/rfb_locus/{result_file['Serovar'].sample_name}_rfb_locus_sequence.fasta'), 'wt') as handle:
             handle.write("".join([i.format('fna') for i in result_file['Serovar'].pieces]))
     if figure and result_file['Serovar'].best_match:
         from dna_features_viewer import GraphicFeature, GraphicRecord

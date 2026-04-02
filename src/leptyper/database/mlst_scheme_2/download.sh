@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # profiles
-curl https://rest.pubmlst.org/db/pubmlst_leptospira_seqdef/schemes/1/profiles_csv \
+curl https://rest.pubmlst.org/db/pubmlst_leptospira_seqdef/schemes/2/profiles_csv \
  -o profiles.tsv
  
 # loci
