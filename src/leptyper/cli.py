@@ -115,6 +115,8 @@ def main(argv: list[str] | None = None):
                 'Serovar': lepto_serotyping(assembly_obj, args.threads, args.min_cov, args.n_best, 
                                             args.percent_expected, args.verbose)
                                             }
+            if result_file['Serovar'] is None:
+                continue
             # Generate output
             generate_output(result_file, args.output, args.no_cps_sequence, args.figure, args.verbose)
 

@@ -511,7 +511,7 @@ class LocusPiece:
 
     def format(self, format_spec) -> str | dict:
         if format_spec == 'fna':
-            return f">{self.result.sample_name}|{self.id}:{self.start}-{self.end}_{self.strand}\n{self.sequence}\n"
+            return f">{self.result.sample_name}|{self.id}:{self.start + 1}-{self.end}_{self.strand}\n{self.sequence}\n"
         if format_spec == 'json':
             return {'id': self.id, 'start': str(self.start), 'end': str(self.end), 'strand': self.strand,
                     'sequence': str(self.sequence)}
@@ -703,17 +703,26 @@ def lepto_serotyping(assembly_obj, threads: int = 0, min_cov: float = 50, n_best
 
     best_loci = [db[int(i)] for i in
                  np.argsort(scores)[::-1][:min(n_best, len(scores))]]  # Get the best loci to fully align
+
     # ALIGN LOCUS ------------------------------------------------------------------------------------------------------
     scores, idx = np.zeros((len(best_loci), 4)), {l.name: i for i, l in enumerate(best_loci)}  # Init scores and index
     locus_alignments = {l.name: [] for l in best_loci}  # Init dict to store alignments for each locus
     # Group alignments by locus
     # Since last time we only looked at the best alignment for each gene, now we will align the full-length sequences of the loci
+    best_match = None
     for locus, alns in group_alns(assembly_obj.map(''.join(i.format('fna') for i in best_loci), threads, verbose=verbose)):
         for a in alns:  # For each alignment of the locus
+            # Sometimes other locus will have multiple irrelevant matches across the genome, which will affect the result,
+            # But if there is a very good match (coverage and identity above 95%), we can be confident that this is the best match, 
+            # and we can skip the rest of the alignments, which will save time and avoid noise from other matches.
+            if a.coverage >= 95 and a.identity >= 95:
+                best_match = best_loci[idx[locus]]
             scores[idx[locus]] += [a.tags['AS'], a.mlen, a.blen, a.q_len]  # Add alignment metrics to the scores
             # All match will be included, there maybe some noise, but this could avoid the rfb locus be separated into multiple pieces in different contigs.
             locus_alignments[locus].append(a)  # Add the alignment to the locus alignments
-    best_match = best_loci[np.argmax(scores[:, 0])]  # Get the best match based on the highest score
+
+    if best_match is None:
+        best_match = best_loci[np.argmax(scores[:, 0])]  # Get the best match based on the highest score
     
     result = TypingResult(assembly_obj.name, db, best_match)  # Create the result object
 
