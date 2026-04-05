@@ -242,12 +242,17 @@ def parse_database(db_path: Path, verbose: bool = False) -> Generator[Locus, Non
                 raise LeptyperError(f'Could not parse locus name from {record.id}')
             yield Locus.from_seqrecord(record, locus_name)
 
-def load_database(verbose: bool = False) -> Database:
+def load_database(reference: str, verbose: bool = False) -> Database:
     '''
     Load the database from the genbank file and return a Database object. 
     The genbank file must be in the same directory as this script and named 'Leptospira_lps_locus_reference.gbk'.
     '''
-    db_path = Path(__file__).parents[0] / 'database' / 'Leptospira_lps_locus_reference.gbk'
+    db_relevant_path = Path(reference)
+    db_abs_path = Path(__file__).parents[0] / 'database' / reference
+    if not db_abs_path.is_file():
+        db_path = db_relevant_path
+    else:
+        db_path = db_abs_path
     if not db_path.is_file():
         raise LeptyperError(f"Database file not found: {db_path}")
     db = Database(db_path.stem)
@@ -511,7 +516,12 @@ class LocusPiece:
 
     def format(self, format_spec) -> str | dict:
         if format_spec == 'fna':
-            return f">{self.result.sample_name}|{self.id}:{self.start + 1}-{self.end}_{self.strand}\n{self.sequence}\n"
+            if self.strand == '-':
+                sequence = self.sequence.reverse_complement()
+                return f">{self.result.sample_name}|{self.id}:{self.start + 1}-{self.end}_{self.strand}_rev\n{sequence}\n"
+            else:
+                sequence = self.sequence
+                return f">{self.result.sample_name}|{self.id}:{self.start + 1}-{self.end}_{self.strand}\n{sequence}\n"
         if format_spec == 'json':
             return {'id': self.id, 'start': str(self.start), 'end': str(self.end), 'strand': self.strand,
                     'sequence': str(self.sequence)}
@@ -676,9 +686,8 @@ class GeneResult:
             else:
                 warning(f'Error aligning {self.__repr__()}')
 
-def lepto_serotyping(assembly_obj, threads: int = 0, min_cov: float = 50, n_best: int = 2, 
-                     percent_expected_genes: float = 50, verbose: bool = False) -> TypingResult | None:
-    db = load_database(verbose=verbose)
+def lepto_serotyping(assembly_obj, db: Database, sin_db: Database | None, threads: int = 0, min_cov: float = 50, 
+                     n_best: int = 2, percent_expected_genes: float = 50, verbose: bool = False) -> TypingResult | None:
 
     # ALIGN GENES ------------------------------------------------------------------------------------------------------
     # Init scores array with 6 columns: AS, mlen, blen, q_len, genes_found, genes_expected

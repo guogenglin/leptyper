@@ -18,6 +18,7 @@ leptyper [-h] -i INPUT [INPUT ...] [-o OUTPUT] [-t THREADS]
 
 Input and Output:
   -i, --input             Input FASTA files
+  -r, --reference         GenBank format reference database (default: Leptospira_lps_locus_reference.gbk)
   -o, --output            Output file (default: leptyper_output.txt)
 
 Parameters:

@@ -17,7 +17,7 @@ from Bio.SeqIO.FastaIO import SimpleFastaParser
 
 from .mash import lepto_species_mash
 from .mlst import lepto_mlst
-from .serotyping import lepto_serotyping
+from .serotyping import lepto_serotyping, load_database
 from .alignment import Contig, Assembly
 from .utils import check_programs_shutil, check_cpus, check_assembly, gunzip_assembly, LeptyperError
 from .log import log, formatted_description
@@ -38,6 +38,8 @@ def get_argument() -> argparse.ArgumentParser:
     io_group = parser.add_argument_group('Input and Output')
     io_group.add_argument('-i', '--input', required = True, nargs = '+', type = str, 
                           help = 'Input FASTA files')
+    io_group.add_argument('-r', '--reference', type = str, default = 'Leptospira_lps_locus_reference.gbk', 
+                          help = 'Reference rfb locus GenBank file')
     io_group.add_argument('-o', '--output', type = str, default = 'leptyper_output.txt', 
                           help = 'Output file')
 
@@ -52,6 +54,8 @@ def get_argument() -> argparse.ArgumentParser:
                            'fully aligned to the assembly (default: %(default)s)')
     param_group.add_argument('--percent-expected', type=float, default=50.0,
                       help="Typeable if >= %% expected genes (default: %(default)s)")
+    param_group.add_argument('--no_singleton',action = 'store_true',
+                             help = 'Suppress checking for similar matches in the extra singleton database.')
     param_group.add_argument('--no_cps_sequence', action = 'store_true',
                              help = 'Suppress output of cps sequence file')
     param_group.add_argument('-f', '--figure', action = 'store_true',
@@ -93,8 +97,9 @@ def main(argv: list[str] | None = None):
     argv = sys.argv[1:] if argv is None else argv
     args = get_argument().parse_args(argv)
     # Check required external programs
-    check_programs_shutil(['minimap2', 'mash'], verbose=args.verbose)
-
+    check_programs_shutil(['minimap2', 'mash'], verbose = args.verbose)
+    db = load_database(args.reference, args.verbose)
+    sin_db = None if args.no_singleton else load_database('singleton_database.gbk', args.verbose)
     for assembly in args.input:
         validated_assembly = check_assembly(assembly)
         if not validated_assembly:
@@ -112,7 +117,7 @@ def main(argv: list[str] | None = None):
                 'Isolate': assembly_obj,
                 'Species': lepto_species_mash(assembly, args.verbose),
                 'MLST': lepto_mlst(assembly_obj, args.verbose),
-                'Serovar': lepto_serotyping(assembly_obj, args.threads, args.min_cov, args.n_best, 
+                'Serovar': lepto_serotyping(assembly_obj, db, sin_db, args.threads, args.min_cov, args.n_best, 
                                             args.percent_expected, args.verbose)
                                             }
             if result_file['Serovar'] is None:
