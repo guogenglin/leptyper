@@ -23,6 +23,8 @@ Input and Output:
 
 Parameters:
   -t, --threads           Number of alignment threads or 0 for all available CPUs (available cpus or 32(maximum))
+  --min_locus_cov         Minimum locus coverage to pending if the sequence is typable (default: 95.0)
+  --min_locus_id          Minimum locus identity to pending if the sequence is typable (default: 95.0)
   --min-cov               Minimum gene %coverage (blen/q_len*100) to be used for scoring (default: 50.0)
   --n-best                Number of best loci from the 1st round of scoring to be
                           fully aligned to the assembly (default: 2)

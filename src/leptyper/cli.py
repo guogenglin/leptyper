@@ -48,9 +48,9 @@ def get_argument() -> argparse.ArgumentParser:
     param_group.add_argument('-t', '--threads', type = int, default = check_cpus(),
                              help = 'Number of alignment threads or 0 for all available CPUs')
     param_group.add_argument('--min_locus_cov', type = float, default = 95.0, 
-                      help='Minimum locus coverage (blen/q_len*100) to pending if the sequence is typable (default: %(default)s)')
+                      help='Minimum locus coverage to pending if the sequence is typable (default: %(default)s)')
     param_group.add_argument('--min_locus_id', type=float, default=95.0,
-                      help='Minimum locus identity (matches/blen*100) to pending if the sequence is typable (default: %(default)s)')
+                      help='Minimum locus identity to pending if the sequence is typable (default: %(default)s)')
     param_group.add_argument('--min-cov', type=float, default=50.0, 
                       help='Minimum gene %%coverage (blen/q_len*100) to be used for scoring (default: %(default)s)')
     param_group.add_argument('--n-best', type=int, default=2, 
