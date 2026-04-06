@@ -325,9 +325,8 @@ class TypingResult:
             gene_type = f"{gene_result.gene_type}{'_outside_locus' if gene_result.gene_type.startswith(('expected', 'unexpected')) else ''}"
         getattr(self, gene_type).append(gene_result)  # Add gene result to the appropriate list
 
-    @property
-    def output_name(self) -> str:
-        return f'{self.best_match.name}' if (self.percent_identity >=95 and self.percent_coverage >= 95) else f'{self.best_match.name}?'
+    def output_name(self, min_locus_id: float = 95.0, min_locus_cov: float = 95.0) -> str:
+        return f'{self.best_match.name}' if (self.percent_identity >= min_locus_id and self.percent_coverage >= min_locus_cov) else f'{self.best_match.name}?'
     
     @property
     def percent_identity(self) -> float:
@@ -372,9 +371,9 @@ class TypingResult:
     def confidence(self) -> str:
         return self._confidence if self._confidence is not None else "Not calculated"
 
-    def get_confidence(self, percent_expected_genes: float = 50):
+    def get_confidence(self, percent_expected_genes: float = 50, min_locus_cov: float = 95.0, min_locus_id: float = 95.0):
         p = len(set(i.gene.name for i in self.expected_genes_inside_locus)) / len(self.best_match.genes) * 100
-        if not (self.percent_identity >= 95 and self.percent_coverage >= 95) or p <= percent_expected_genes:
+        if not (self.percent_identity >= min_locus_id and self.percent_coverage >= min_locus_cov) or p <= percent_expected_genes:
             self._confidence = "Untypeable"
         else:
             self._confidence = "Typeable"
@@ -649,9 +648,8 @@ def find_best_locus_match(assembly_obj, best_loci: list, threads: int, verbose: 
 
     for locus, alns in group_alns(assembly_obj.map(''.join(i.format('fna') for i in best_loci), threads, verbose=verbose)):
         for a in alns:  # For each alignment of the locus
-            # Sometimes other locus will have multiple irrelevant matches across the genome, which will affect the result,
-            # But if there is a very good match (coverage and identity above 95%), we can be confident that this is the best match, 
-            # and we can skip the rest of the alignments, which will save time and avoid noise from other matches.
+            # Sometimes other locus will have multiple irrelevant matches across the genome, which will affect the result.
+            # So we adjusted the pending methods, give more weight to the alignments with better coverage and alignment length.
             adjust_score = a.tags['AS'] *(a.mlen / a.blen) * ((a.q_en - a.q_st) / a.q_len)  # Adjust the score by coverage and alignment length
             scores[idx[locus]] += [a.tags['AS'], a.mlen, a.blen, a.q_len, adjust_score]  # Add alignment metrics to the scores
             # All match will be included, there maybe some noise, but this could avoid the rfb locus be separated into multiple pieces in different contigs.
@@ -732,21 +730,23 @@ def main_typing_process(assembly_obj, db: Database, scores: np.ndarray, alignmen
 
     return result
 
-def try_typing(assembly_obj, db: Database, threads: int, min_cov: float, n_best: int, 
-               percent_expected_genes: float, verbose: bool) -> TypingResult | None:
+def try_typing(assembly_obj, db: Database, threads: int, min_locus_cov: float, min_locus_id: float, 
+               min_cov: float, n_best: int, percent_expected_genes: float, verbose: bool) -> TypingResult | None:
     """Align genes against db and run the main typing process. Returns None if no hits."""
     scores, alignments = align_genes(assembly_obj, db, threads, min_cov, verbose)
     if scores.max() == 0:
         return None
     result = main_typing_process(assembly_obj, db, scores, alignments, threads, n_best, verbose)
-    result.get_confidence(percent_expected_genes)
+    result.get_confidence(percent_expected_genes, min_locus_cov, min_locus_id)
 
     return result
 
-def lepto_serotyping(assembly_obj, db: Database, sin_db: Database | None, threads: int = 0, min_cov: float = 50, 
+def lepto_serotyping(assembly_obj, db: Database, sin_db: Database | None, threads: int = 0, 
+                     min_locus_cov: float = 95.0, min_locus_id: float = 95.0, min_cov: float = 50, 
                      n_best: int = 2, percent_expected_genes: float = 50, no_singleton: bool = False, 
                      verbose: bool = False) -> tuple[TypingResult | None, TypingResult | None]:
-    result = try_typing(assembly_obj, db, threads, min_cov, n_best, percent_expected_genes, verbose)
+    result = try_typing(assembly_obj, db, threads, min_locus_cov, min_locus_id, min_cov, n_best, 
+                        percent_expected_genes, verbose)
     # Typed successfully — no singleton fallback needed
     if result is not None and result.confidence != "Untypeable":
         return result, None
@@ -760,7 +760,8 @@ def lepto_serotyping(assembly_obj, db: Database, sin_db: Database | None, thread
     if sin_db is None:
         return result, None
 
-    sin_result = try_typing(assembly_obj, sin_db, threads, min_cov, n_best, percent_expected_genes, verbose)
+    sin_result = try_typing(assembly_obj, sin_db, threads, min_locus_cov, min_locus_id, min_cov, n_best, 
+                            percent_expected_genes, verbose)
     if sin_result is None:
         warning(f'Cannot find gene alignments for {assembly_obj.name} in the singleton database either.\n')
 

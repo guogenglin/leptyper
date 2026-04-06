@@ -47,6 +47,10 @@ def get_argument() -> argparse.ArgumentParser:
     param_group = parser.add_argument_group('Parameters')
     param_group.add_argument('-t', '--threads', type = int, default = check_cpus(),
                              help = 'Number of alignment threads or 0 for all available CPUs')
+    param_group.add_argument('--min_locus_cov', type = float, default = 95.0, 
+                      help='Minimum locus coverage (blen/q_len*100) to pending if the sequence is typable (default: %(default)s)')
+    param_group.add_argument('--min_locus_id', type=float, default=95.0,
+                      help='Minimum locus identity (matches/blen*100) to pending if the sequence is typable (default: %(default)s)')
     param_group.add_argument('--min-cov', type=float, default=50.0, 
                       help='Minimum gene %%coverage (blen/q_len*100) to be used for scoring (default: %(default)s)')
     param_group.add_argument('--n-best', type=int, default=2, 
@@ -117,11 +121,12 @@ def main(argv: list[str] | None = None):
                 'Isolate': assembly_obj,
                 'Species': lepto_species_mash(assembly, args.verbose),
                 'MLST': lepto_mlst(assembly_obj, args.verbose),
-                'Serovar': lepto_serotyping(assembly_obj, db, sin_db, args.threads, args.min_cov, args.n_best, 
-                                            args.percent_expected, args.no_singleton, args.verbose)
+                'Serovar': lepto_serotyping(assembly_obj, db, sin_db, args.threads, args.min_locus_cov, args.min_locus_id, 
+                                            args.min_cov, args.n_best, args.percent_expected, args.no_singleton, 
+                                            args.verbose)
                                             }
             # Generate output
-            generate_output(result_file, args.output, args.no_rfb_sequence, args.figure, args.verbose)
+            generate_output(result_file, args.output, args.min_locus_cov, args.min_locus_id, args.no_rfb_sequence, args.figure, args.verbose)
 
     
     

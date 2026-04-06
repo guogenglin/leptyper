@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .log import warning
+from .log import log, warning
 
 def fmt_pct(value: float) -> str:
     """Format a percentage, capping at 100.00."""
@@ -82,7 +82,7 @@ def build_headers(result_file: dict) -> list[str]:
     return headers
 
 
-def build_serovar_fields(sv0, sv1) -> list[str]:
+def build_serovar_fields(sv0, sv1, min_locus_id: float = 95.0, min_locus_cov: float = 95.0) -> list[str]:
     """Build the 21 serovar-related output fields."""
     na = 'n/a'
 
@@ -91,14 +91,14 @@ def build_serovar_fields(sv0, sv1) -> list[str]:
 
     # --- Primary serovar (sv0) ---
     sv0_fields = (
-        [sv0.output_name, sv0.confidence, sv0.problems,
+        [sv0.output_name(min_locus_id, min_locus_cov), sv0.confidence, sv0.problems,
          fmt_pct(sv0.percent_identity), fmt_pct(sv0.percent_coverage)]
         if sv0 else [na] * 5
     )
 
     # --- Singleton serovar (sv1) ---
     sv1_fields = (
-        [sv1.output_name, sv1.problems,
+        [sv1.output_name(min_locus_id, min_locus_cov), sv1.problems,
          fmt_pct(sv1.percent_identity), fmt_pct(sv1.percent_coverage)]
         if (sv1 and sv1.confidence == 'Typeable') else [na] * 4
     )
@@ -135,14 +135,14 @@ def build_serovar_fields(sv0, sv1) -> list[str]:
     return sv0_fields + sv1_fields + [length_discrepancy] + gene_fields
 
 
-def generate_output(result_file: dict, output_path: str, no_rfb_sequence: bool = False, figure: bool = False, 
-                    verbose: bool = False) -> None:
+def generate_output(result_file: dict, output_path: str, min_locus_cov: float = 95.0, min_locus_id: float = 95.0, 
+                    no_rfb_sequence: bool = False, figure: bool = False, verbose: bool = False) -> None:
     
-
     sv0, sv1 = result_file['Serovar']
     isolate = result_file['Isolate']
     species = result_file['Species']
 
+    log(f'Generating output for {isolate.name}.', verbose)
     # Write header row if file does not yet exist
     if not Path(output_path).is_file():
         with open(output_path, 'wt') as fh:
@@ -151,10 +151,10 @@ def generate_output(result_file: dict, output_path: str, no_rfb_sequence: bool =
     if sv0 is None and sv1 is None:
         warning(f'Cannot find gene alignments for {isolate.name} in all databases.\n')
     elif sv0 is None and sv1 is not None and sv1.confidence != 'Untypeable':
-        print(f'{isolate.name}: {species.reference}, no good match in main database, best singleton match: {sv1.output_name}')
+        print(f'{isolate.name}: {species.reference}, no good match in main database, best singleton match: {sv1.output_name(min_locus_id, min_locus_cov)}')
     else:
-        sin_suffix = '' if (sv1 is None or sv1.confidence == 'Untypeable') else f' singleton: {sv1.output_name}'
-        print(f"{isolate.name}: {species.reference} {sv0.output_name}{sin_suffix}")
+        sin_suffix = '' if (sv1 is None or sv1.confidence == 'Untypeable') else f' singleton: {sv1.output_name(min_locus_id, min_locus_cov)}'
+        print(f"{isolate.name}: {species.reference} {sv0.output_name(min_locus_id, min_locus_cov)}{sin_suffix}")
 
     # Build and write TSV line
     line = [
@@ -163,7 +163,7 @@ def generate_output(result_file: dict, output_path: str, no_rfb_sequence: bool =
     ]
     for scheme in ['mlst_scheme_1', 'mlst_scheme_2', 'mlst_scheme_3']:
         line += list(result_file['MLST'][scheme].values())
-    line += build_serovar_fields(sv0, sv1)
+    line += build_serovar_fields(sv0, sv1, min_locus_id, min_locus_cov)
 
     with open(output_path, 'at') as fh:
         fh.write('\t'.join(line) + '\n')
