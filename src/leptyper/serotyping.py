@@ -14,7 +14,6 @@ from io import TextIOBase
 from warnings import catch_warnings
 from typing import Optional, TextIO
 from itertools import groupby, chain
-from functools import cached_property
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.Align import PairwiseAligner
@@ -373,19 +372,12 @@ class TypingResult:
     def confidence(self) -> str:
         return self._confidence if self._confidence is not None else "Not calculated"
 
-    def get_confidence(self, max_other_genes: int = 1, percent_expected_genes: float = 50):
+    def get_confidence(self, percent_expected_genes: float = 50):
         p = len(set(i.gene.name for i in self.expected_genes_inside_locus)) / len(self.best_match.genes) * 100
-        other_genes = len(
-            set(i.gene.name for i in self.unexpected_genes_inside_locus if not i.phenotype == "truncated"))
-        if "*" in self.problems:
+        if not (self.percent_identity >= 95 and self.percent_coverage >= 95) or p <= percent_expected_genes:
             self._confidence = "Untypeable"
         else:
-            if len(self.pieces) == 1 and not self.missing_genes and not other_genes:
-                self._confidence = "Typeable"
-            elif other_genes <= max_other_genes and p >= percent_expected_genes:
-                self._confidence = "Typeable"
-            else:
-                self._confidence = "Untypeable"
+            self._confidence = "Typeable"
 
     @classmethod
     def from_dict(cls, d: dict, db: Database) -> TypingResult:
@@ -416,71 +408,12 @@ class TypingResult:
         return self
 
     def format(self, format_spec) -> str | dict:
-        if format_spec == 'tsv':
-            return '\t'.join(
-                [
-                    self.sample_name,
-                    self.best_match.name,
-                    self.phenotype,
-                    self.confidence,
-                    self.problems,
-                    f"{self.percent_identity:.2f}%",
-                    f"{self.percent_coverage:.2f}%",
-                    f"{self.__len__() - len(self.best_match)} bp" if len(self.pieces) == 1 else 'n/a',
-                    f"{(n_inside := len({i.gene.name for i in self.expected_genes_inside_locus}))} / {(n_expected := len(self.best_match.genes))} ({100 * n_inside / n_expected:.2f}%)",
-                    ';'.join(map(str, self.expected_genes_inside_locus)),
-                    ';'.join(self.missing_genes),
-                    f"{len(self.unexpected_genes_inside_locus)}",
-                    ';'.join(map(str, self.unexpected_genes_inside_locus)),
-                    f"{(n_outside := len({i.gene.name for i in self.expected_genes_outside_locus}))} / {n_expected} ({100 * n_outside / n_expected:.2f}%)",
-                    ';'.join(map(str, self.expected_genes_outside_locus)),
-                    f"{len(self.unexpected_genes_outside_locus)}",
-                    ';'.join(map(str, self.unexpected_genes_outside_locus)),
-                    ';'.join(map(str, filter(lambda z: z.phenotype == "truncated", self))),
-                    ';'.join(map(str, self.extra_genes))
-                ]
-            ) + "\n"
         if format_spec == 'fna':  # Return the nucleotide sequence of the locus
             return "".join([i.format(format_spec) for i in self.pieces])
         if format_spec in {'faa', 'ffn'}:  # Return the protein or nucleotide sequence of gene results
             return "".join([i.format(format_spec) for i in self])
-        if format_spec == 'json':
-            return dumps(
-                {
-                    'sample_name': self.sample_name, 'best_match': self.best_match.name, 'confidence': self.confidence,
-                    'phenotype': self.phenotype, 'problems': self.problems,
-                    'percent_identity': str(self.percent_identity),
-                    'percent_coverage': str(self.percent_coverage), 'missing_genes': self.missing_genes
-                } | {
-                    attr: [i.format(format_spec) for i in getattr(self, attr)] for attr in {
-                        'pieces', 'expected_genes_inside_locus', 'unexpected_genes_inside_locus',
-                        'expected_genes_outside_locus', 'unexpected_genes_outside_locus', 'extra_genes'
-                    }
-                }) + "\n"
-        raise LeptyperError(f"Unknown format specifier {format_spec}")
 
-    def write(self,
-              tsv: TextIO = None,
-              json: TextIO = None,
-              fna: str | PathLike | TextIO = None,
-              ffn: str | PathLike | TextIO = None,
-              faa: str | PathLike | TextIO = None,
-              plot: str | PathLike = None,
-              plot_fmt: str = 'png'):
-        """Write the typing result to files or file handles."""
-        [f.write(self.format(fmt)) for f, fmt in [(tsv, 'tsv'), (json, 'json')] if isinstance(f, TextIOBase)]
-        for f, fmt in [(fna, 'fna'), (ffn, 'ffn'), (faa, 'faa')]:
-            if f:
-                if isinstance(f, TextIOBase):
-                    f.write(self.format(fmt))
-                elif isinstance(f, PathLike) or isinstance(f, str):
-                    with open(path.join(f, f'{self.sample_name}_kaptive_results.{fmt}'), 'wt') as handle:
-                        handle.write(self.format(fmt))
-        if plot:
-            ax = self.format(plot_fmt).plot(figure_width=18)[0]  # type: 'matplotlib.axes.Axes'
-            ax.set_title(f"{self.sample_name} {self.best_match} ({self.phenotype}) - {self.confidence}")
-            ax.figure.savefig(path.join(plot, f'{self.sample_name}_kaptive_results.{plot_fmt}'), bbox_inches='tight')
-            ax.figure.clear()  # TODO: Check if this is necessary
+        raise LeptyperError(f"Unknown format specifier {format_spec}")
 
 class LocusPiece:
     def __init__(self, id: str = None, result: TypingResult = None, start: int | None = 0,
@@ -516,12 +449,7 @@ class LocusPiece:
 
     def format(self, format_spec) -> str | dict:
         if format_spec == 'fna':
-            if self.strand == '-':
-                sequence = self.sequence.reverse_complement()
-                return f">{self.result.sample_name}|{self.id}:{self.start + 1}-{self.end}_{self.strand}_rev\n{sequence}\n"
-            else:
-                sequence = self.sequence
-                return f">{self.result.sample_name}|{self.id}:{self.start + 1}-{self.end}_{self.strand}\n{sequence}\n"
+            return f">{self.result.sample_name}|{self.id}:{self.start + 1}-{self.end}_{self.strand}\n{self.sequence}\n"
         if format_spec == 'json':
             return {'id': self.id, 'start': str(self.start), 'end': str(self.end), 'strand': self.strand,
                     'sequence': str(self.sequence)}
@@ -686,11 +614,12 @@ class GeneResult:
             else:
                 warning(f'Error aligning {self.__repr__()}')
 
-def lepto_serotyping(assembly_obj, db: Database, sin_db: Database | None, threads: int = 0, min_cov: float = 50, 
-                     n_best: int = 2, percent_expected_genes: float = 50, verbose: bool = False) -> TypingResult | None:
-
-    # ALIGN GENES ------------------------------------------------------------------------------------------------------
-    # Init scores array with 6 columns: AS, mlen, blen, q_len, genes_found, genes_expected
+def align_genes(assembly_obj, db: Database, threads: int = 0, min_cov: float = 50, verbose: bool = False
+                ) -> tuple[np.ndarray, list]:
+    '''
+    Align the genes in the database to the assembly and return a scores array for each locus.
+    '''
+      # Init scores array with 6 columns: AS, mlen, blen, q_len, genes_found, genes_expected
     scores, alignments = np.zeros((len(db), 6)), []
     # Group alignments by query gene (Alignment.q)
     for q, alns in group_alns(assembly_obj.map(db.format('ffn'), threads, verbose=verbose)):
@@ -701,57 +630,71 @@ def lepto_serotyping(assembly_obj, db: Database, sin_db: Database | None, thread
             scores[db.loci[q.split('_', 1)[0]].index] += [
                 best.tags['AS'], best.mlen, best.blen, best.q_len, 1, 0]
             # Sum the alignment score, mlen, blen, q_len for the best alignment of the gene to the locus.
-        # For each gene, add: AS, mlen, blen, q_len, genes_found (1), genes_expected (0 but will update later)
-    if scores.max() == 0:  # TODO：This gene alignment based method may not suitable for Leptospira, also, we can detect the flanking genes further instead.
-        return warning(f'No gene alignments sufficient for typing {assembly_obj.name}\n'
-                       f'Have you used the appropriate database for your species?')
-    
+            # For each gene, add: AS, mlen, blen, q_len, genes_found (1), genes_expected (0 but will update later)
+    return scores, alignments
+
+def compute_initial_scores(scores: np.ndarray, db: Database) -> np.ndarray:
+    '''
+    Compute the initial scores for each locus based on the alignment scores and the number of genes found.
+    '''
     scores[:, 5] = db.expected_gene_counts  # Add expected genes (which is the total gene number of every loci)
-    
-    scores = scores[:, 0] * (scores[:, 4] / scores[:, 5])  # AS * (genes_found / genes_expected)
+    return scores[:, 0] * (scores[:, 4] / scores[:, 5])  # AS * (genes_found / genes_expected)
 
-    best_loci = [db[int(i)] for i in
-                 np.argsort(scores)[::-1][:min(n_best, len(scores))]]  # Get the best loci to fully align
-
+def find_best_locus_match(assembly_obj, best_loci: list, threads: int, verbose: bool) -> tuple:
     # ALIGN LOCUS ------------------------------------------------------------------------------------------------------
-    scores, idx = np.zeros((len(best_loci), 4)), {l.name: i for i, l in enumerate(best_loci)}  # Init scores and index
+    # Init scores and index
+    scores = np.zeros((len(best_loci), 5))
+    idx = {l.name: i for i, l in enumerate(best_loci)}
     locus_alignments = {l.name: [] for l in best_loci}  # Init dict to store alignments for each locus
-    # Group alignments by locus
-    # Since last time we only looked at the best alignment for each gene, now we will align the full-length sequences of the loci
-    best_match = None
+
     for locus, alns in group_alns(assembly_obj.map(''.join(i.format('fna') for i in best_loci), threads, verbose=verbose)):
         for a in alns:  # For each alignment of the locus
             # Sometimes other locus will have multiple irrelevant matches across the genome, which will affect the result,
             # But if there is a very good match (coverage and identity above 95%), we can be confident that this is the best match, 
             # and we can skip the rest of the alignments, which will save time and avoid noise from other matches.
-            if a.coverage >= 95 and a.identity >= 95:
-                best_match = best_loci[idx[locus]]
-            scores[idx[locus]] += [a.tags['AS'], a.mlen, a.blen, a.q_len]  # Add alignment metrics to the scores
+            adjust_score = a.tags['AS'] *(a.mlen / a.blen) * ((a.q_en - a.q_st) / a.q_len)  # Adjust the score by coverage and alignment length
+            scores[idx[locus]] += [a.tags['AS'], a.mlen, a.blen, a.q_len, adjust_score]  # Add alignment metrics to the scores
             # All match will be included, there maybe some noise, but this could avoid the rfb locus be separated into multiple pieces in different contigs.
             locus_alignments[locus].append(a)  # Add the alignment to the locus alignments
+    best_match =  best_loci[np.argmax(scores[:, 4])]  # Get the best match based on the highest score
+    return locus_alignments, best_match
 
-    if best_match is None:
-        best_match = best_loci[np.argmax(scores[:, 0])]  # Get the best match based on the highest score
-    
-    result = TypingResult(assembly_obj.name, db, best_match)  # Create the result object
-
+def build_pieces(locus_alignments: dict, result: TypingResult, best_match) -> dict:
     # RECONSTRUCT LOCUS ------------------------------------------------------------------------------------------------
     # The original tool used largest locus for merge_ranges tolerance, but this may be too large for 
     # some loci, so we will use the actual length of the best match locus as the tolerance, which is more 
     # reasonable.
-    pieces = {  # Init dict to store pieces for each contig
-        ctg: [LocusPiece(ctg, result, s, e) for s, e in  # Create pieces for each merged contig range
-              merge_ranges([(a.r_st, a.r_en) for a in alns], best_match._length)]
+    return {  # Init dict to store pieces for each contig
+        ctg: [
+            LocusPiece(ctg, result, s, e) for s, e in  # Create pieces for each merged contig range
+            merge_ranges([(a.r_st, a.r_en) for a in alns], best_match._length)]
         for ctg, alns in group_alns(locus_alignments[best_match.name], key='ctg')  # Group by contig
     }  # We can't add strand as the pieces may be merged from multiple alignments, we will determine from the genes
 
+def _classify_gene(a, best_match, db: Database) -> tuple:
+    """Return (gene, gene_type) for an alignment, or (None, None) if not found."""
+    if gene := best_match.genes.get(a.q):
+        return gene, "expected_genes"
+    if gene := db.genes.get(a.q):
+        return gene, "unexpected_genes"
+    return None, None
+
+def main_typing_process(assembly_obj, db: Database, scores: np.ndarray, alignments: list[Alignment], 
+                        threads: int = 0, n_best: int = 2, verbose: bool = False) -> TypingResult:
+    # SCORE & SELECT best loci for full alignment
+    locus_scores = compute_initial_scores(scores, db)
+    best_loci = [db[int(i)] for i in np.argsort(locus_scores)[::-1][: min(n_best, len(locus_scores))]]
+
+    # ALIGN LOCUS ------------------------------------------------------------------------------------------------------
+    locus_alignments, best_match = find_best_locus_match(assembly_obj, best_loci, threads, verbose)
+    
+    result = TypingResult(assembly_obj.name, db, best_match)  # Create the result object
+
+    # RECONSTRUCT LOCUS ------------------------------------------------------------------------------------------------
+    pieces = build_pieces(locus_alignments, result, best_match)
     # GET GENE RESULTS -------------------------------------------------------------------------------------------------
     for a in cull_filtered(lambda i: i.q in best_match.genes, alignments):  # For each non-overlapping gene alignment
-        if gene := best_match.genes.get(a.q):  # Get gene reference from database and gene type
-            gene_type = "expected_genes"
-        else:
-            gene = db.genes.get(a.q)
-            gene_type = "unexpected_genes"
+        gene, gene_type = _classify_gene(a, best_match, db)
         # Get Piece if gene range overlaps with a piece, return a LocusPiece object or None
         piece = next(filter(lambda p: range_overlap((p.start, p.end), (a.r_st, a.r_en)) > 0,
                             pieces.get(a.ctg, [])), None)
@@ -786,6 +729,39 @@ def lepto_serotyping(assembly_obj, db: Database, sin_db: Database | None, thread
     result.missing_genes = list(set(best_match.genes) - {
         i.gene.name for i in chain(result.expected_genes_inside_locus, result.expected_genes_outside_locus)
     })
-    result.get_confidence(1, percent_expected_genes)
-    log(f"Finished typing {result}", verbose=verbose)
+
     return result
+
+def try_typing(assembly_obj, db: Database, threads: int, min_cov: float, n_best: int, 
+               percent_expected_genes: float, verbose: bool) -> TypingResult | None:
+    """Align genes against db and run the main typing process. Returns None if no hits."""
+    scores, alignments = align_genes(assembly_obj, db, threads, min_cov, verbose)
+    if scores.max() == 0:
+        return None
+    result = main_typing_process(assembly_obj, db, scores, alignments, threads, n_best, verbose)
+    result.get_confidence(percent_expected_genes)
+
+    return result
+
+def lepto_serotyping(assembly_obj, db: Database, sin_db: Database | None, threads: int = 0, min_cov: float = 50, 
+                     n_best: int = 2, percent_expected_genes: float = 50, no_singleton: bool = False, 
+                     verbose: bool = False) -> tuple[TypingResult | None, TypingResult | None]:
+    result = try_typing(assembly_obj, db, threads, min_cov, n_best, percent_expected_genes, verbose)
+    # Typed successfully — no singleton fallback needed
+    if result is not None and result.confidence != "Untypeable":
+        return result, None
+
+    # Failed or untypeable: optionally fall back to singleton database
+    if no_singleton:
+        warning(
+            f'Cannot find gene alignments for {assembly_obj.name} in the reference database.\n'
+            f'Maybe you can try the singleton database.')
+        return result, None
+    if sin_db is None:
+        return result, None
+
+    sin_result = try_typing(assembly_obj, sin_db, threads, min_cov, n_best, percent_expected_genes, verbose)
+    if sin_result is None:
+        warning(f'Cannot find gene alignments for {assembly_obj.name} in the singleton database either.\n')
+
+    return result, sin_result

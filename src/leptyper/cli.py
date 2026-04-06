@@ -55,9 +55,9 @@ def get_argument() -> argparse.ArgumentParser:
     param_group.add_argument('--percent-expected', type=float, default=50.0,
                       help="Typeable if >= %% expected genes (default: %(default)s)")
     param_group.add_argument('--no_singleton',action = 'store_true',
-                             help = 'Suppress checking for similar matches in the extra singleton database.')
-    param_group.add_argument('--no_cps_sequence', action = 'store_true',
-                             help = 'Suppress output of cps sequence file')
+                             help = 'Do not run alignment against the extra singleton database.')
+    param_group.add_argument('--no_rfb_sequence', action = 'store_true',
+                             help = 'Suppress output of rfb sequence file')
     param_group.add_argument('-f', '--figure', action = 'store_true',
                              help = 'Export the gene structure map of rfb locus')
     param_group.add_argument('-V', '--verbose', action = 'store_true',
@@ -118,12 +118,10 @@ def main(argv: list[str] | None = None):
                 'Species': lepto_species_mash(assembly, args.verbose),
                 'MLST': lepto_mlst(assembly_obj, args.verbose),
                 'Serovar': lepto_serotyping(assembly_obj, db, sin_db, args.threads, args.min_cov, args.n_best, 
-                                            args.percent_expected, args.verbose)
+                                            args.percent_expected, args.no_singleton, args.verbose)
                                             }
-            if result_file['Serovar'] is None:
-                continue
             # Generate output
-            generate_output(result_file, args.output, args.no_cps_sequence, args.figure, args.verbose)
+            generate_output(result_file, args.output, args.no_rfb_sequence, args.figure, args.verbose)
 
     
     
